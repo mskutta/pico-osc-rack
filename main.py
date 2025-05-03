@@ -4,18 +4,9 @@ from machine import Pin,SPI
 import network
 import struct
 import time
+from config import Config
 
 led = Pin(25, Pin.OUT)
-
-# Configure OSC endpoint
-OSC_IP = "10.81.95.148"  # Replace with your endpoint IP
-OSC_PORT = 53000  # Replace with your endpoint port
-
-# Initialize pins GP2 through GP9 as inputs with pull-up resistors
-pins = [Pin(i, Pin.IN, Pin.PULL_UP) for i in range(2, 10)]
-
-# Store the previous state of each pin
-previous_states = [pin.value() for pin in pins]
 
 class OSCClient:
     def __init__(self, host, port):
@@ -153,8 +144,13 @@ def w5x00_init():
     print(nic.ifconfig())
         
 def main():
+    config = Config()
     w5x00_init()
-    client = OSCClient(OSC_IP, OSC_PORT)
+    client = OSCClient(config.config['osc_ip'], config.config['osc_port'])
+
+    # Initialize pins from config
+    pins = [Pin(i, Pin.IN, Pin.PULL_UP) for i in config.config['pins']]
+    previous_states = [pin.value() for pin in pins]
     
     while True:
         try:
@@ -168,7 +164,7 @@ def main():
                     try:
                         if current_state == 0:
                             print(f"Pin {i+1} triggered")
-                            client.send_message("/cue/1/go")
+                            client.send_message(config.config['addresses'][i])
                         else:
                             print(f"Pin {i+1} untriggered")
                         previous_states[i] = current_state
