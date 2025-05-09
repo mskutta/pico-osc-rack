@@ -1,5 +1,6 @@
 #from usocket import socket
-from machine import Pin,SPI
+from machine import Pin, SPI, I2C
+from ssd1306 import SSD1306_I2C
 import network
 import time
 from config import Config
@@ -19,9 +20,27 @@ def w5x00_init():
         time.sleep(1)
         print(nic.regs())
     print(nic.ifconfig())
+
+def init_display():
+    # Initialize I2C with GPIO 4 (SDA) and GPIO 5 (SCL)
+    i2c = I2C(1, sda=Pin(26), scl=Pin(27), freq=400000)
+    time.sleep(1)
+    devices = i2c.scan()
+    if not devices:
+        print("No I2C devices found!")
+
+    if devices:
+        for device in devices:
+            print(f"I2C device found at address: {hex(device)}")
+    display = SSD1306_I2C(128, 64, i2c)  # 128x64 is the common resolution
+    return display
         
 def main():
     config = Config()
+    display = init_display()
+    display.text("Initializing...", 0, 0)
+    display.show()
+    
     w5x00_init()
     client = OSCClient(config.config['osc_ip'], config.config['osc_port'])
 
@@ -33,6 +52,9 @@ def main():
         try:
             if not client.connected:
                 client.connect()
+                display.fill(0)  # Clear display
+                display.text("Connected!", 0, 0)
+                display.show()
                 print("Connected to OSC server")
 
             for i, pin in enumerate(pins):
@@ -40,12 +62,21 @@ def main():
                 if current_state != previous_states[i]:
                     try:
                         if current_state == 0:
+                            display.fill(0)
+                            display.text(f"Pin {i+1} ON", 0, 0)
+                            display.show()
                             print(f"Pin {i+1} triggered")
                             client.send_message(config.config['addresses'][i])
                         else:
+                            #display.fill(0)
+                            #display.text(f"Pin {i+1} OFF", 0, 0)
+                            #display.show()
                             print(f"Pin {i+1} untriggered")
                         previous_states[i] = current_state
                     except OSError as e:
+                        #display.fill(0)
+                        #display.text("Socket Error", 0, 0)
+                        #display.show()
                         print(f"Socket error while sending: {e}")
                         client.close()
                         time.sleep(1)  # Wait before reconnecting
@@ -57,6 +88,9 @@ def main():
             time.sleep(0.1)
 
         except OSError as e:
+            #display.fill(0)
+            #display.text("Connection Error", 0, 0)
+            #display.show()
             print(f"Connection error: {e}")
             client.close()
             time.sleep(1)  # Wait before reconnecting
