@@ -4,7 +4,7 @@ from ssd1306 import SSD1306_I2C
 import network
 import time
 from config import Config
-from oscclient import OSCClient
+from oscclientudp import OSCClient
 
 led = Pin(25, Pin.OUT)
 
@@ -37,7 +37,7 @@ def init_display():
 
 def draw_grid_cell(display, col, row, text, inverted=False):
     x = col * 64  # 128/2 = 64 pixels per column
-    y = 16 + (row * 12)  # First row starts at 16, 12 pixels per row
+    y = 15 + (row * 12)  # First row starts at 16, 12 pixels per row
     if inverted:
         # Draw filled rectangle
         display.fill_rect(x, y, 64, 12, 1)
@@ -61,52 +61,54 @@ def main():
     previous_states = [pin.value() for pin in pins]
     trigger_counts = [0] * len(pins)  # Track number of triggers for each pin
     
+    last_run = time.ticks_ms()
+    run_interval = 100  # 100ms interval
+
     while True:
         try:
-            if not client.connected:
-                client.connect()
+            # Check if it's time to run the main loop
+            # This is a simple way to throttle the loop
+            # to avoid overwhelming the display and network
+            # and to ensure we don't send too many OSC messages
+            current_time = time.ticks_ms()
+            if time.ticks_diff(current_time, last_run) >= run_interval:
+                last_run = current_time
+
                 display.fill(0)  # Clear display
-                display.text("Connected!", 0, 0)
-                display.show()
-                print("Connected to OSC server")
-
-            display.fill(0)  # Clear display
-            display.text("Running...", 0, 0)  # Status line
-
-            for i, pin in enumerate(pins):
-                current_state = pin.value()
-                if current_state != previous_states[i]:
-                    try:
+                display.text("Running...", 0, 0)  # Status line
+            
+                for i, pin in enumerate(pins):
+                    current_state = pin.value()
+                    if current_state != previous_states[i]:
                         if current_state == 0:  # Pin triggered
                             trigger_counts[i] += 1
                             print(f"Pin {i+1} triggered")
-                            client.send_message(config.config['addresses'][i])
                         else:
                             print(f"Pin {i+1} untriggered")
                         previous_states[i] = current_state
-                    except OSError as e:
-                        print(f"Socket error while sending: {e}")
-                        client.close()
-                        time.sleep(1)
-                        continue
 
-                # Draw grid cell
-                col = i % 2  # 2 columns
-                row = i // 2  # 4 rows
-                cell_text = f"P{i+1}:{trigger_counts[i]}"
-                draw_grid_cell(display, col, row, cell_text, current_state == 0)
+                    if current_state == 0:  # Pin triggered
+                        try:
+                            client.send_message(config.config['addresses'][i])
+                        except OSError as e:
+                            print(f"OSC Error: {e}")
 
-            display.show()
+                    # loop over the run states and draw the grid
+                    col = i % 2
+                    row = i // 2
+                    cell_text = f"P{i+1}:{trigger_counts[i]}"
+                    draw_grid_cell(display, col, row, cell_text, current_state == 0)
 
-            led.value(1)
-            time.sleep(0.1)
-            led.value(0)
-            time.sleep(0.1)
+                try:
+                    display.show()
+                except OSError as e:
+                    print(f"Display Error: {e}")
 
-        except OSError as e:
-            print(f"Connection error: {e}")
-            client.close()
-            time.sleep(1)
+                led.toggle()
+
+        except Exception as e:
+            print(f"Loop Error: {e}")
+            time.sleep(1)  # Delay before retrying
 
 if __name__ == "__main__":
     main()
