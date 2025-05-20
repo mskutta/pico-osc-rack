@@ -1,10 +1,11 @@
 #from usocket import socket
-from machine import Pin, SPI, I2C
+from machine import Pin, SPI, I2C, SoftI2C
 from ssd1306 import SSD1306_I2C
 import network
 import time
 from config import Config
 from oscclientudp import OSCClient
+# import mdns_client
 
 led = Pin(25, Pin.OUT)
 
@@ -22,9 +23,10 @@ def w5x00_init():
     print(nic.ifconfig())
 
 def init_display():
-    # Initialize I2C with GPIO 4 (SDA) and GPIO 5 (SCL)
-    i2c = I2C(1, sda=Pin(26), scl=Pin(27), freq=400000)
-    time.sleep(1)
+    # Initialize I2C with GPIO 26 (SDA) and GPIO 27 (SCL)
+    # i2c = I2C(1, sda=Pin(26), scl=Pin(27))
+    i2c = SoftI2C(scl=Pin(27), sda=Pin(26))
+    time.sleep(2)
     devices = i2c.scan()
     if not devices:
         print("No I2C devices found!")
@@ -52,12 +54,30 @@ def main():
     display = init_display()
     display.text("Initializing...", 0, 0)
     display.show()
+
+    # # Detect qLab via mDNS, if more than one, use the first
+    # try:
+    #     mdns.start()
+    #     time.sleep(1)  # Give mDNS time to discover
+    #     services = mdns.browse('_qlab._tcp')
+    #     if services:
+    #         qlab = services[0]  # Take first qLab instance
+    #         config.config['osc_ip'] = qlab['ip']
+    #         config.config['osc_port'] = qlab['port']
+    #         print(f"Found qLab at {qlab['ip']}:{qlab['port']}")
+    #     else:
+    #         print("No qLab instances found")
+    # except ImportError:
+    #     print("mDNS not supported")
+    # except Exception as e:
+    #     print(f"mDNS error: {e}")
+
     
     w5x00_init()
     client = OSCClient(config.config['osc_ip'], config.config['osc_port'])
 
-    # Initialize pins from config
-    pins = [Pin(i, Pin.IN, Pin.PULL_UP) for i in config.config['pins']]
+    # Initialize pins 2-9 as inputs with pull-up resistors
+    pins = [Pin(i, Pin.IN, Pin.PULL_UP) for i in list(range(2, 10))]
     previous_states = [pin.value() for pin in pins]
     trigger_counts = [0] * len(pins)  # Track number of triggers for each pin
     

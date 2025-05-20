@@ -14,7 +14,6 @@ class Config:
             return {
                 "osc_ip": "10.81.95.148",
                 "osc_port": 53000,
-                "pins": list(range(2, 10)),
                 "addresses": ["/cue/1/go", "/cue/2/go", "/cue/3/go", "/cue/4/go", "/cue/5/go", "/cue/6/go", "/cue/7/go", "/cue/8/go"]
             }
     
