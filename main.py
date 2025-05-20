@@ -5,7 +5,6 @@ import network
 import time
 from config import Config
 from oscclientudp import OSCClient
-# import mdns_client
 
 led = Pin(25, Pin.OUT)
 
@@ -55,25 +54,8 @@ def main():
     display.text("Initializing...", 0, 0)
     display.show()
 
-    # # Detect qLab via mDNS, if more than one, use the first
-    # try:
-    #     mdns.start()
-    #     time.sleep(1)  # Give mDNS time to discover
-    #     services = mdns.browse('_qlab._tcp')
-    #     if services:
-    #         qlab = services[0]  # Take first qLab instance
-    #         config.config['osc_ip'] = qlab['ip']
-    #         config.config['osc_port'] = qlab['port']
-    #         print(f"Found qLab at {qlab['ip']}:{qlab['port']}")
-    #     else:
-    #         print("No qLab instances found")
-    # except ImportError:
-    #     print("mDNS not supported")
-    # except Exception as e:
-    #     print(f"mDNS error: {e}")
-
-    
     w5x00_init()
+
     client = OSCClient(config.config['osc_ip'], config.config['osc_port'])
 
     # Initialize pins 2-9 as inputs with pull-up resistors
