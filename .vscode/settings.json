@@ -2,7 +2,8 @@
     "python.languageServer": "Pylance",
     "python.analysis.typeCheckingMode": "basic",
     "python.analysis.diagnosticSeverityOverrides": {
-        "reportMissingModuleSource": "none"
+        "reportMissingModuleSource": "none",
+        "reportShadowedImports": "none"
     },
     "python.terminal.activateEnvironment": false,
     "micropico.openOnStart": true,
@@ -10,6 +11,9 @@
         "~/.micropico-stubs/included"
     ],
     "python.analysis.extraPaths": [
-        "~/.micropico-stubs/included"
-    ]
+        "",
+        "/Users/mike/.vscode/extensions/joedevivo.vscode-circuitpython-0.2.0-darwin-x64/stubs",
+        "/Users/mike/Library/Application Support/Code/User/globalStorage/joedevivo.vscode-circuitpython/bundle/20261031/adafruit-circuitpython-bundle-py-20261031/lib"
+    ],
+    "circuitpython.board.version": null
 }
