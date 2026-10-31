@@ -43,7 +43,13 @@ class OSCClient:
             # SLIP encode the message
             # SLIP encoding is used for OSC over TCP
             slip_packet = self._slip_encode(msg)
-            self.socket.send(slip_packet)
+            # TCP writes can be partial; send the entire framed message.
+            sent = 0
+            while sent < len(slip_packet):
+                count = self.socket.send(slip_packet[sent:])
+                if not count:
+                    raise OSError("TCP connection closed during send")
+                sent += count
         except OSError as e:
             self.close()
             raise

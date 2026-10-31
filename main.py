@@ -4,7 +4,7 @@ from ssd1306 import SSD1306_I2C
 import network
 import time
 from config import Config
-from oscclientudp import OSCClient
+from oscclienttcp import OSCClient
 
 led = Pin(25, Pin.OUT)
 
@@ -71,7 +71,7 @@ def main():
             # Check if it's time to run the main loop
             # This is a simple way to throttle the loop
             # to avoid overwhelming the display and network
-            # and to ensure we don't send too many OSC messages
+            # Sensors are sampled every 100ms; OSC sends only on a new trip.
             current_time = time.ticks_ms()
             if time.ticks_diff(current_time, last_run) >= run_interval:
                 last_run = current_time
@@ -82,18 +82,18 @@ def main():
                 for i, pin in enumerate(pins):
                     current_state = pin.value()
                     if current_state != previous_states[i]:
+                        # Record the transition before sending so a failed send
+                        # does not repeatedly fire while the sensor stays low.
+                        previous_states[i] = current_state
                         if current_state == 0:  # Pin triggered
                             trigger_counts[i] += 1
                             print(f"Pin {i+1} triggered")
+                            try:
+                                client.send_message(config.config['addresses'][i])
+                            except OSError as e:
+                                print(f"OSC Error: {e}")
                         else:
                             print(f"Pin {i+1} untriggered")
-                        previous_states[i] = current_state
-
-                    if current_state == 0:  # Pin triggered
-                        try:
-                            client.send_message(config.config['addresses'][i])
-                        except OSError as e:
-                            print(f"OSC Error: {e}")
 
                     # loop over the run states and draw the grid
                     col = i % 2
