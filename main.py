@@ -78,6 +78,7 @@ def main():
 
                 display.fill(0)  # Clear display
                 display.text("Running...", 0, 0)  # Status line
+                client.service()  # Detect disconnects and drain QLab replies.
             
                 for i, pin in enumerate(pins):
                     current_state = pin.value()

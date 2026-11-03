@@ -1,5 +1,6 @@
 import socket
 import struct
+import select
 
 class OSCClient:
     def __init__(self, host, port):
@@ -7,6 +8,7 @@ class OSCClient:
         self.port = port
         self.socket = None
         self.connected = False
+        self.poller = None
     
     def connect(self):
         try:
@@ -15,13 +17,17 @@ class OSCClient:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.settimeout(5.0)  # 5 second timeout
             self.socket.connect((self.host, self.port))
+            self.poller = select.poll()
+            self.poller.register(self.socket, select.POLLIN)
             self.connected = True
+            print("OSC TCP connected")
         except OSError as e:
             print(f"Connection failed: {e}")
             self.close()
             raise
         
     def close(self):
+        self.poller = None
         if self.socket:
             try:
                 self.socket.close()
@@ -29,30 +35,62 @@ class OSCClient:
                 pass
         self.socket = None
         self.connected = False
-    
+
+    def service(self):
+        """Drain replies and detect a closed connection without waiting.
+
+        Limit reads per call so incoming traffic cannot monopolize the
+        sensor loop. QLab normally sends no reply for a successful /go,
+        but can send errors or replies when /alwaysReply is enabled.
+        """
+        if not self.connected:
+            return
+        try:
+            for _ in range(4):
+                events = self.poller.poll(0)
+                if not events:
+                    return
+                flags = events[0][1]
+                if flags & (select.POLLERR | select.POLLHUP):
+                    print("OSC TCP connection closed; reconnecting on next trip")
+                    self.close()
+                    return
+                if not flags & select.POLLIN:
+                    return
+                reply = self.socket.recv(512)
+                if not reply:
+                    print("OSC TCP connection closed; reconnecting on next trip")
+                    self.close()
+                    return
+                print("QLab reply: {}".format(reply))
+        except OSError as e:
+            print("OSC TCP receive error: {}".format(e))
+            self.close()
+
     def send_message(self, address, *args):
         """Send an OSC message with the given address and arguments"""
-        if not self.connected:
-            self.connect()
-        
-        try:
-            # Format the OSC message
-            msg = self._format_message(address, *args)
-            print(f"Sending message: {msg}")
-            
-            # SLIP encode the message
-            # SLIP encoding is used for OSC over TCP
-            slip_packet = self._slip_encode(msg)
-            # TCP writes can be partial; send the entire framed message.
+        slip_packet = self._slip_encode(self._format_message(address, *args))
+        self.service()
+        for attempt in range(2):
+            if not self.connected:
+                self.connect()
             sent = 0
-            while sent < len(slip_packet):
-                count = self.socket.send(slip_packet[sent:])
-                if not count:
-                    raise OSError("TCP connection closed during send")
-                sent += count
-        except OSError as e:
-            self.close()
-            raise
+            try:
+                # TCP writes can be partial; send the entire framed message.
+                while sent < len(slip_packet):
+                    count = self.socket.send(slip_packet[sent:])
+                    if not count:
+                        raise OSError("TCP connection closed during send")
+                    sent += count
+                print("OSC TCP sent: {}".format(address))
+                return
+            except OSError:
+                self.close()
+                # Retry once only if no bytes were accepted. Replaying after
+                # a partial write could execute the same cue twice.
+                if sent or attempt:
+                    raise
+                print("OSC TCP send failed before any bytes; reconnecting")
     
     def _pad_string(self, s):
         """Pad a string to be 4-byte aligned"""
